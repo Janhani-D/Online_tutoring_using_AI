@@ -15,10 +15,11 @@ export async function POST(request) {
   try {
     const { messages } = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Using the explicitly provided API key as a fallback if the environment variable is missing
+    const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyD4KlCnG9sUzu9gAqQZKqHLhuxSn-oKpb0';
     if (!apiKey) {
       return Response.json(
-        { error: 'GEMINI_API_KEY is not configured. Please add it to your .env.local file.' },
+        { error: 'GEMINI_API_KEY is not configured.' },
         { status: 500 }
       );
     }
