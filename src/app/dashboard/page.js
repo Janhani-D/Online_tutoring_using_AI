@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -11,26 +11,70 @@ export default function DashboardPage() {
       text: "Hi! 👋 I'm your AI tutor. Ask me anything about your subjects — math, science, coding, history — I'm here to help 24/7!",
     },
   ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
 
-  const handleSend = (e) => {
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async (e) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() || isLoading) return;
 
     const userMsg = { role: 'user', text: message };
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
+    setMessage('');
+    setIsLoading(true);
 
-    // Simulated AI response
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: updatedMessages }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get response');
+      }
+
+      // Stream the response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      // Add an empty AI message that we'll stream into
+      setMessages((prev) => [...prev, { role: 'ai', text: '' }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastMsg = updated[updated.length - 1];
+          updated[updated.length - 1] = {
+            ...lastMsg,
+            text: lastMsg.text + chunk,
+          };
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
       setMessages((prev) => [
         ...prev,
         {
           role: 'ai',
-          text: "Great question! Let me think about that... 🤔 In a production app, this would hit the AI API for a real answer. For now, I'm just a demo!",
+          text: `⚠️ ${error.message || 'Something went wrong. Please try again.'}`,
         },
       ]);
-    }, 1000);
-
-    setMessage('');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -135,6 +179,14 @@ export default function DashboardPage() {
                   {msg.text}
                 </div>
               ))}
+              {isLoading && messages[messages.length - 1]?.role !== 'ai' && (
+                <div className="chat-message ai typing-indicator">
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                  <span className="dot"></span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
             <form className="chat-input-area" onSubmit={handleSend}>
               <input
@@ -143,8 +195,11 @@ export default function DashboardPage() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 id="chat-input"
+                disabled={isLoading}
               />
-              <button type="submit">Send</button>
+              <button type="submit" disabled={isLoading || !message.trim()}>
+                {isLoading ? '...' : 'Send'}
+              </button>
             </form>
           </div>
         </div>
