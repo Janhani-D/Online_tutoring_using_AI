@@ -16,7 +16,7 @@ export async function POST(request) {
     const { messages } = await request.json();
 
     // Using the explicitly provided API key as a fallback if the environment variable is missing
-    const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyDXAOphCHAWyepqR6-2xPI889hC1JuofJA';
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return Response.json(
         { error: 'GEMINI_API_KEY is not configured.' },
